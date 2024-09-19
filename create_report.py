@@ -1,5 +1,7 @@
 # Import color
+import copy
 import os
+from typing import Union
 
 from pdfrw import PdfDict, PdfObject, PdfReader, PdfWriter
 from reportlab.lib import colors
@@ -8,176 +10,45 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 
-from utils import (
+from global_vars import (
     A4_height,
     A4_width,
+    bottom_margin,
+    dict_font_description_style,
+    dict_font_header_1_value_style,
+    dict_font_title_style,
+    dict_text_field_header_value_params,
+    dict_text_field_table_params,
+    frame_description_height,
+    frame_dict_font_description_style,
+    frame_style,
+    frame_value_style,
+    header_1_col_1_width,
+    header_1_col_2_width,
+    header_1_title_width,
+    hosx,
+    hosy,
+    left_margin,
+    list_value_names,
+    list_wagon_necessary_keys,
+    moyd,
+    no_padding_frame_params,
+    right_margin,
+    solid_black_line_params,
+    top_margin,
+    transparent_frame_params,
+)
+from utils import (
     FrameComposite,
     create_line,
     create_matrix,
-    no_padding_frame_params,
-    solid_black_line_params,
-    transparent_frame_params,
 )
-
-# Main fram parameters
-bottom_margin = 50
-top_margin = 50
-left_margin = 20
-right_margin = 20
-
-main_frame_width = A4_width - left_margin - right_margin
-main_frame_height = A4_height - top_margin - bottom_margin
-
-header_1_col_1_width = main_frame_width * 0.35
-header_1_title_width = main_frame_width * 0.3
-header_1_col_2_width = main_frame_width * 0.35
-header_2_absender_width = main_frame_width * 0.25
-header_2_empfanger_width = main_frame_width * 0.25
-header_2_zu_verzollen_in_width = main_frame_width * 0.25
-header_2_begleiter_width = main_frame_width * 0.25
-
-
-# Paramenters for the header
-# Offset over the line
-hosy = 4
-
-# Offset next to the line
-hosx = 2
-
-# Description height
-hdh = 15
-
-# Offset y for the description
-hoyd = 30
-
-# Parameters for medium frame (Absender, Empfänger, Zu verzollen in, Begleiter)
-# Offset over the line
-mosy = 2
-
-# Offset next to the line
-mosx = 2
-
-# Description height
-mdh = 30
-
-# Offset y for the description
-moyd = 30
-
-
-text_field_params = {
-    "fillColor": colors.transparent,
-    "borderWidth": 0,
-    "fontName": "Helvetica",
-    "fontSize": 10,
-}
-
-styles = getSampleStyleSheet()
-
-default_style = {
-    "name": "Custom",
-    "parent": styles["Normal"],
-    "fontName": "Helvetica",
-    "textColor": colors.black,
-}
-
-small_style = {
-    "fontSize": 8,
-}
-
-medium_style = {
-    "fontSize": 11,
-}
-
-big_style = {
-    "fontSize": 14,
-    "leading": 14,
-}
-
-description_style = {**default_style, **small_style}
-
-header_1_value_style = {**default_style, **medium_style}
-
-header_2_value_style = {**default_style, **small_style, "alignment": 0}
-
-title_style = {**default_style, **big_style, "alignment": 1}
-
-wagenliste_description_style = {**default_style, **small_style, "alignment": 1}
-wagenliste_value_style = {**default_style, **small_style, "alignment": 1}
-
-
-dict_field_value_style = {
-    "Versandbahnhof_1": header_1_value_style,
-    "Versandbahnhof_2": header_1_value_style,
-    "Leitungswege": header_1_value_style,
-    "Ort": header_1_value_style,
-    "Ubernahme": header_2_value_style,
-    "Absender": header_2_value_style,
-    "Empfänger": header_2_value_style,
-    "Zu_verzollen_in": header_2_value_style,
-    "Begleiter": header_2_value_style,
-    "Bahnhof": wagenliste_value_style,
-    "Unternehmen": wagenliste_value_style,
-    "Versand_Nr": wagenliste_value_style,
-    "Land": wagenliste_value_style,
-}
-
-
-dict_param_widths = {
-    "Versandbahnhof_1": header_1_col_1_width,
-    "Versandbahnhof_2": header_1_col_1_width,
-    "Leitungswege": header_1_col_1_width,
-    "Ort": header_1_col_2_width,
-    "Ubernahme": header_1_col_2_width,
-    "Absender": header_2_absender_width,
-    "Empfänger": header_2_empfanger_width,
-    "Zu_verzollen_in": header_2_zu_verzollen_in_width,
-    "Begleiter": header_2_begleiter_width,
-}
-
-dict_param_heights = {}
-
-two_line_values = ["Absender", "Empfänger", "Zu_verzollen_in", "Begleiter", "Versandbahnhof_1", "Versandbahnhof_2", "Leitungswege", "Ort"]
-
-
-single_values = ["Bahnhof", "Unternehmen", "Versand_Nr", "Land"]
-
-common_values = two_line_values + single_values
-
-
-dict_positions = {
-    "Versandbahnhof_1": {
-        "parent": "main_frame",
-        "position": {
-            "start_x": 0,
-            "end_x": header_1_col_1_width,
-            "start_y": 0,
-            "end_y": 50,
-        },
-    },
-}
-
-
-# Header parameters
-header_height = 30
-header_width = 100
-
-
-# This a percentage of the height the table body will take
-table_line_height = 3.5
-
-max_num_wagons_per_page = int(100 // table_line_height) - 1
-
-
-black_color = (0, 0, 0)
-
-# PDF setup
-pdf_file = "simple_form.pdf"
 
 
 def get_treated_values(info_values: dict) -> dict:
     dict_treated_values = {}
 
-    for key in two_line_values + single_values:
+    for key in list_value_names:
         if key in info_values:
             if isinstance(info_values[key], str):
                 dict_treated_values[key] = info_values[key]
@@ -194,23 +65,74 @@ def get_treated_values(info_values: dict) -> dict:
     dict_treated_values["Sum_masses"] = sum_masses
 
     dict_treated_values["date"] = date
-
     return dict_treated_values
 
 
-def create_report(filename: str, wagon_values: list[dict], dict_treated_values: dict, repeat_header: bool = True):
+def create_report(filename: str, wagon_values: list[dict] | int, info_values: dict, repeat_header: bool = True):
+    """Create a report with the given values.
+
+    Args:
+        wagon_values (list[dict]): List of wagons with the following keys or a integer:
+            - Wagen: str
+            - BezDG (Bezeichnung des Gutes): str
+            - NHM: str
+            - PN: str
+            - RID: str
+            - NettoMasse: str
+            - TaraWagon: str
+            - BruttoMasse: str
+
+        info_values (dict): Dictionary with the following keys:
+            Versandbahnhof_1: str or list of str
+            Versandbahnhof_2: str or list of str
+            Leitungswege: str or list of str
+            Bahnhof: str
+            Unternehmen: str
+            Versand_Nr: str
+            Land: str
+            Ort: str
+            date: List with three values. eg. ["09", "03", "08"]
+            Sum_masses: List with three values. eg. ["560 380", "158 430", "718 810"]
+            Absender: List with one or two values
+            Empfänger: List with one or two values
+            Zu_verzollen_in: List with one or two values
+            Begleiter: List with one or two values
+
+
+        filename (str, optional): Name of the report.
+
+    """
+    if isinstance(wagon_values, int):
+        empty_wagon = {key: "" for key in list_wagon_necessary_keys}
+
+        wagon_values = [empty_wagon] * wagon_values
+
+    dict_treated_values = get_treated_values(info_values)
+
+    _create_report(filename, wagon_values, dict_treated_values, repeat_header)
+
+
+def _create_report(filename: str, wagon_values: list[dict], dict_treated_values: dict, repeat_header: bool = True):
     c = canvas.Canvas("temporary.pdf", pagesize=A4)
 
-    count_wagons_missing = len(wagon_values)
+    wagon_values = copy.deepcopy(wagon_values)
+
+    if len(wagon_values) == 0:
+        print("No wagons to create the report. File was NOT created")
+        return
+
     last_idx_last_page = 0
     is_last_page = False
     count_item = 0
-    while count_wagons_missing > 0:
+    print("______------" * 10)
+    while len(wagon_values) > 0:
+        print("______------" * 5)
+        print(f"New page started with {len(wagon_values)} wagons| last_idx_last_page = {last_idx_last_page}")
         dfs: dict[str, FrameComposite] = {}
         dfs["main_frame"] = FrameComposite(
             c,
             left_margin,
-            A4_width - left_margin,
+            A4_width - right_margin,
             bottom_margin,
             A4_height - top_margin,
             (1, 0, 0),
@@ -218,14 +140,10 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
         )
 
         must_add_header = repeat_header or last_idx_last_page == 0
-        frame_style = {**solid_black_line_params, **no_padding_frame_params}
-        frame_description_style = {**transparent_frame_params, **no_padding_frame_params}
-        frame_value_style = {**transparent_frame_params, **no_padding_frame_params}
-        if must_add_header:
-            text_description_style = description_style
 
+        if must_add_header:
             frame_description_text = "Versandbahnhof"
-            frame_description_height = 1.5 * text_description_style["fontSize"]
+
             frame_description_position = {
                 "start_x": hosx,
                 "end_x": header_1_col_1_width,
@@ -240,23 +158,23 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             dfs[frame_description_name] = dfs["main_frame"].add_frame(
                 c,
                 **frame_description_position,
-                **frame_description_style,
+                **frame_dict_font_description_style,
             )
 
             dfs[frame_description_name].frame_container.frame.add(
-                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                Paragraph(frame_description_text, style=ParagraphStyle(**dict_font_description_style)),
                 c,
             )
 
             min_height = 30
 
             frame_value_text = dict_treated_values["Versandbahnhof_1"]
-            text_value_style = header_1_value_style
+            text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
             p.wrap(header_1_col_1_width, 1e6)
-            lines_necessary = len(p.getActualLineWidths0())
+            lines_necessary = max(1, (len(p.getActualLineWidths0())))
 
-            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+            frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
             frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
 
@@ -293,12 +211,17 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 **frame_value_style,
             )
 
-            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
-
-            dfs["Versandbahnhof_1_value"].frame_container.frame.add(p, c)
+            c.acroForm.textfield(
+                name="Versandbahnhof_1_value",
+                value=frame_value_text.replace("<br/>", "\n"),
+                x=dfs["Versandbahnhof_1_value"].frame_container.start_x,
+                y=dfs["Versandbahnhof_1_value"].frame_container.start_y,
+                width=dfs["Versandbahnhof_1_value"].frame_container.width,
+                height=dfs["Versandbahnhof_1_value"].frame_container.height,
+                **dict_text_field_header_value_params,
+            )
 
             frame_description_text = "Versandbahnhof"
-            frame_description_height = 1.5 * text_description_style["fontSize"]
 
             start_y = hosy + dfs["Versandbahnhof_1_frame"].end_y
             end_y = start_y + frame_description_height
@@ -313,23 +236,23 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             dfs["Versandbahnhof_2_description"] = dfs["main_frame"].add_frame(
                 c,
                 **frame_description_position,
-                **frame_description_style,
+                **frame_dict_font_description_style,
             )
 
             dfs["Versandbahnhof_2_description"].frame_container.frame.add(
-                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                Paragraph(frame_description_text, style=ParagraphStyle(**dict_font_description_style)),
                 c,
             )
 
             min_height = 30
 
             frame_value_text = dict_treated_values["Versandbahnhof_2"]
-            text_value_style = header_1_value_style
+            text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
             p.wrap(header_1_col_1_width, 1e6)
-            lines_necessary = len(p.getActualLineWidths0())
+            lines_necessary = max(1, (len(p.getActualLineWidths0())))
 
-            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+            frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
             frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
 
@@ -365,12 +288,17 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 **frame_value_style,
             )
 
-            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
-
-            dfs["Versandbahnhof_2_value"].frame_container.frame.add(p, c)
+            c.acroForm.textfield(
+                name="Versandbahnhof_2_value",
+                value=frame_value_text.replace("<br/>", "\n"),
+                x=dfs["Versandbahnhof_2_value"].frame_container.start_x,
+                y=dfs["Versandbahnhof_2_value"].frame_container.start_y,
+                width=dfs["Versandbahnhof_2_value"].frame_container.width,
+                height=dfs["Versandbahnhof_2_value"].frame_container.height,
+                **dict_text_field_header_value_params,
+            )
 
             frame_description_text = "Leitungswege"
-            frame_description_height = 1.5 * text_description_style["fontSize"]
 
             start_y = hosy + dfs["Versandbahnhof_2_frame"].end_y
             end_y = start_y + frame_description_height
@@ -387,23 +315,23 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             dfs[frame_description_name] = dfs["main_frame"].add_frame(
                 c,
                 **frame_description_position,
-                **frame_description_style,
+                **frame_dict_font_description_style,
             )
 
             dfs[frame_description_name].frame_container.frame.add(
-                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                Paragraph(frame_description_text, style=ParagraphStyle(**dict_font_description_style)),
                 c,
             )
 
             min_height = 30
 
             frame_value_text = dict_treated_values["Leitungswege"]
-            text_value_style = header_1_value_style
+            text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
             p.wrap(header_1_col_1_width, 1e6)
-            lines_necessary = len(p.getActualLineWidths0())
+            lines_necessary = max(1, (max(1, (len(p.getActualLineWidths0())))))
 
-            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+            frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
             frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
 
@@ -439,22 +367,25 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 **frame_value_style,
             )
 
-            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
-
-            dfs["Leitungswege_value"].frame_container.frame.add(p, c)
+            c.acroForm.textfield(
+                name="Leitungswege_value",
+                value=frame_value_text.replace("<br/>", "\n"),
+                x=dfs["Leitungswege_value"].frame_container.start_x,
+                y=dfs["Leitungswege_value"].frame_container.start_y,
+                width=dfs["Leitungswege_value"].frame_container.width,
+                height=dfs["Leitungswege_value"].frame_container.height,
+                **dict_text_field_header_value_params,
+            )
 
             frame_description_text = "Ort"
-            text_description_style = description_style
-            frame_style = {**solid_black_line_params, **no_padding_frame_params}
-            frame_description_height = 1.5 * text_description_style["fontSize"]
 
             frame_value_text = dict_treated_values["Ort"]
-            text_value_style = header_1_value_style
+            text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
             p.wrap(header_1_col_1_width, 1e6)
-            lines_necessary = len(p.getActualLineWidths0())
+            lines_necessary = max(1, (len(p.getActualLineWidths0())))
 
-            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+            frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
             frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
 
@@ -477,12 +408,12 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             min_height = 30
 
             frame_value_text = dict_treated_values["Ort"]
-            text_value_style = header_1_value_style
+            text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
             p.wrap(header_1_col_1_width, 1e6)
-            lines_necessary = len(p.getActualLineWidths0())
+            lines_necessary = max(1, (len(p.getActualLineWidths0())))
 
-            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+            frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
             end_y = dfs["Ort_frame"].end_y - hosy
             start_y = end_y - frame_value_height
@@ -502,14 +433,17 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 **frame_value_style,
             )
 
-            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
-
-            dfs[frame_value_name].frame_container.frame.add(p, c)
+            c.acroForm.textfield(
+                name="Ort_value",
+                value=frame_value_text.replace("<br/>", "\n"),
+                x=dfs["Ort_value"].frame_container.start_x,
+                y=dfs["Ort_value"].frame_container.start_y,
+                width=dfs["Ort_value"].frame_container.width,
+                height=dfs["Ort_value"].frame_container.height,
+                **dict_text_field_header_value_params,
+            )
 
             frame_description_text = "Ort"
-            text_description_style = description_style
-            frame_style = {**solid_black_line_params, **no_padding_frame_params}
-            frame_description_height = 1.5 * text_description_style["fontSize"]
 
             start_y = hosy + dfs["Ort_frame"].start_y
             end_y = start_y + frame_description_height
@@ -526,16 +460,15 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             dfs[frame_description_name] = dfs["main_frame"].add_frame(
                 c,
                 **frame_description_position,
-                **frame_description_style,
+                **frame_dict_font_description_style,
             )
 
             dfs[frame_description_name].frame_container.frame.add(
-                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                Paragraph(frame_description_text, style=ParagraphStyle(**dict_font_description_style)),
                 c,
             )
 
             frame_name = "Übernahme_frame"
-            frame_style = {**solid_black_line_params, **no_padding_frame_params}
 
             start_x = dfs["Ort_frame"].start_x
             end_x = dfs["Ort_frame"].end_x
@@ -556,9 +489,6 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             )
 
             frame_description_text = "Übernahme Monat - Tag - Stunde"
-            text_description_style = {**description_style, "alignment": 1}
-            frame_style = {**solid_black_line_params, **no_padding_frame_params}
-            frame_description_height = 1.5 * text_description_style["fontSize"]
 
             start_y = hosy
             end_y = start_y + frame_description_height
@@ -576,16 +506,16 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             dfs[frame_description_name] = dfs[parent_frame].add_frame(
                 c,
                 **frame_description_position,
-                **frame_description_style,
+                **frame_dict_font_description_style,
             )
 
             dfs[frame_description_name].frame_container.frame.add(
-                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                Paragraph(frame_description_text, style=ParagraphStyle(**{**dict_font_description_style, "alignment": 1})),
                 c,
             )
 
             date = dict_treated_values["date"]
-            frame_value_text = f"{date[0]}  {date[1]}  {date[2]}"
+            frame_value_text = f"{date[0]}  {date[1]}  {date[2]}".strip()
 
             start_y = 2 * hosy + dfs["Ubernahme_frame_description"].end_y
             end_y = start_y + frame_description_height
@@ -603,12 +533,16 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 **frame_value_style,
             )
 
-            dfs["Ubernahme_value"].frame_container.frame.add(
-                Paragraph(frame_value_text, style=ParagraphStyle(**{**text_value_style, "alignment": 1})),
-                c,
+            c.acroForm.textfield(
+                name="to_be_centered_Ubernahme_value",
+                value=frame_value_text.replace("<br/>", "\n"),
+                x=dfs["Ubernahme_value"].frame_container.start_x,
+                y=dfs["Ubernahme_value"].frame_container.start_y,
+                width=dfs["Ubernahme_value"].frame_container.width,
+                height=dfs["Ubernahme_value"].frame_container.height,
+                **dict_text_field_header_value_params,
             )
 
-            frame_style = {**solid_black_line_params, **no_padding_frame_params}
             dfs["Wagenliste_frame"] = dfs["main_frame"].add_frame(
                 c,
                 dfs["Versandbahnhof_1_frame"].end_x,
@@ -622,27 +556,27 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 "title_frameBahnhof_frame": {
                     "position": ((0, 100), (5, 30)),
                     "text": "<b>Wagenliste zum Frachtbrief</b>",
-                    "text_style": {**title_style},
+                    "text_style": {**dict_font_title_style},
                 },
                 "Bahnhof_frame": {
                     "position": ((0, 50), (35, 65)),
                     "text": "Bahnhof",
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
                 "Unternehmen_frame": {
                     "position": ((50, 100), (35, 65)),
                     "text": "Unternehmen",
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
                 "Versand_Nr_frame": {
                     "position": ((0, 50), (65, 95)),
                     "text": "Versand Nr.",
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
                 "land_frame": {
                     "position": ((50, 100), (65, 95)),
                     "text": "Land",
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
             }
 
@@ -663,25 +597,25 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                     "frame_parent": "Bahnhof_frame",
                     "position": ((0, 100), (moyd, 100)),
                     "text": dict_treated_values["Bahnhof"],
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
                 "Unternehmen_value": {
                     "frame_parent": "Unternehmen_frame",
                     "position": ((0, 100), (moyd, 100)),
                     "text": dict_treated_values["Unternehmen"],
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
                 "Versand_Nr_value": {
                     "frame_parent": "Versand_Nr_frame",
                     "position": ((0, 100), (moyd, 100)),
                     "text": dict_treated_values["Versand_Nr"],
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
                 "Land_value": {
                     "frame_parent": "land_frame",
                     "position": ((0, 100), (moyd, 100)),
                     "text": dict_treated_values["Land"],
-                    "text_style": {**description_style, "alignment": 1},
+                    "text_style": {**dict_font_description_style, "alignment": 1},
                 },
             }
 
@@ -693,9 +627,14 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                     {**transparent_frame_params, **no_padding_frame_params},
                 )[0]
 
-                dfs[key].frame_container.frame.add(
-                    Paragraph(value["text"], style=ParagraphStyle(**value["text_style"])),
-                    c,
+                c.acroForm.textfield(
+                    name=f"to_be_centered_{key}",
+                    value=value["text"].replace("<br/>", "\n"),
+                    x=dfs[key].frame_container.start_x,
+                    y=dfs[key].frame_container.start_y,
+                    width=dfs[key].frame_container.width,
+                    height=dfs[key].frame_container.height,
+                    **dict_text_field_header_value_params,
                 )
 
             offset_y_start_table = dfs["Ort_frame"].end_y
@@ -728,22 +667,54 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             {**solid_black_line_params, "leftPadding": 5, "rightPadding": 5, "topPadding": 5, "bottomPadding": 5},
         )
 
-        left_foot.frame_container.frame.addFromList(
+        aux_top, aux_bottom = create_matrix(
+            c,
+            left_foot,
+            [((1.5, 100), (10, 45)), ((1, 100), (50, 100))],
+            {**transparent_frame_params, **no_padding_frame_params},
+        )
+
+        aux_top.frame_container.frame.addFromList(
             [
-                Paragraph("Ausstellung durch", style=ParagraphStyle(**{**description_style, "alignment": 0})),
-                Paragraph("Rail & Sea, Wallerseestrasse 96, AT-5201 Seekirchen", style=ParagraphStyle(**{**header_1_value_style, "alignment": 0})),
+                Paragraph(" Ausstellung durch", style=ParagraphStyle(**{**dict_font_description_style, "alignment": 0})),
+            ],
+            c,
+        )
+
+        c.acroForm.textfield(
+            name="Ausstellung_durch",
+            value=dict_treated_values["Ausstellung_durch"],
+            x=aux_bottom.frame_container.start_x,
+            y=aux_bottom.frame_container.start_y,
+            width=aux_bottom.frame_container.width,
+            height=aux_bottom.frame_container.height,
+            **dict_text_field_header_value_params,
+        )
+
+        aux_top, aux_bottom = create_matrix(
+            c,
+            right_foot,
+            [((1.5, 100), (10, 45)), ((1, 100), (50, 100))],
+            {**transparent_frame_params, **no_padding_frame_params},
+        )
+
+        aux_top.frame_container.frame.addFromList(
+            [
+                Paragraph("Ort, Datum und Unterschrift", style=ParagraphStyle(**{**dict_font_description_style, "alignment": 0})),
             ],
             c,
         )
 
         date = dict_treated_values["date"]
 
-        right_foot.frame_container.frame.addFromList(
-            [
-                Paragraph("Ort, Datum und Unterschrift", style=ParagraphStyle(**{**description_style, "alignment": 0})),
-                Paragraph(f"Seekirchen am {date[0]}.{date[1]}.{date[2]}", style=ParagraphStyle(**{**header_1_value_style, "alignment": 0})),
-            ],
-            c,
+        c.acroForm.textfield(
+            name="Ort_Datum_Unterschrift",
+            value=f"Seekirchen am {date[0]} {date[1]} {date[2]}",
+            x=aux_bottom.frame_container.start_x,
+            y=aux_bottom.frame_container.start_y,
+            width=aux_bottom.frame_container.width,
+            height=aux_bottom.frame_container.height,
+            **dict_text_field_header_value_params,
         )
 
         bottom_frame = dfs["main_frame"].add_frame(
@@ -764,14 +735,14 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
 
         left_bottom.frame_container.frame.addFromList(
             [
-                Paragraph("Nur für den kombinierten Verkehr", style=ParagraphStyle(**{**description_style, "alignment": 0})),
+                Paragraph("Nur für den kombinierten Verkehr", style=ParagraphStyle(**{**dict_font_description_style, "alignment": 0})),
             ],
             c,
         )
 
         right_bottom.frame_container.frame.addFromList(
             [
-                Paragraph("CIT-23", style=ParagraphStyle(**{**description_style, "alignment": 2})),
+                Paragraph("CIT-23", style=ParagraphStyle(**{**dict_font_description_style, "alignment": 2})),
             ],
             c,
         )
@@ -837,13 +808,13 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
             if key != "RID":
                 aux.frame_container.frame.addFromList(
                     [
-                        Paragraph(f"{value['col_name']}", style=ParagraphStyle(**{**description_style, "alignment": 1})),
+                        Paragraph(f"{value['col_name']}", style=ParagraphStyle(**{**dict_font_description_style, "alignment": 1})),
                     ],
                     c,
                 )
             else:
                 aux.frame_container.frame.addFromList(
-                    [Paragraph(f"{aux}", style=ParagraphStyle(**{**description_style, "alignment": 1})) for aux in value["col_name"]],
+                    [Paragraph(f"{aux}", style=ParagraphStyle(**{**dict_font_description_style, "alignment": 1})) for aux in value["col_name"]],
                     c,
                 )
 
@@ -852,16 +823,10 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
 
         quant_wagons_this_page = int(table_body_height // line_height) - 1
 
-        # print(f"quant_wagons_this_page: {quant_wagons_this_page}")
         for row_idx in range(quant_wagons_this_page):
-            count_wagons_missing -= 1
-            # print(row_idx, row_idx + last_idx_last_page, count_wagons_missing)
-
-            if count_wagons_missing < 0:
-                is_last_page = True
+            if len(wagon_values) < 1:
                 break
-
-            wagon = wagon_values[row_idx + last_idx_last_page]
+            wagon = wagon_values.pop(0)
             start_y = row_idx * line_height + 2
             end_y = start_y + line_height
             for col_name in dict_col_params:
@@ -883,12 +848,13 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                     y=aux_frame.frame_container.start_y,
                     width=aux_frame.frame_container.width,
                     height=aux_frame.frame_container.height,
-                    **text_field_params,
+                    **dict_text_field_table_params,
                 )
                 count_item += 1
-        last_idx_last_page = quant_wagons_this_page
-        # print(f"count_wagons_missing: {count_wagons_missing}")
-        # print(f"last_idx_last_page: {last_idx_last_page}")
+
+        is_last_page = len(wagon_values) == 0
+
+        last_idx_last_page += quant_wagons_this_page
 
         if is_last_page:
             masses = dict_treated_values["Sum_masses"]
@@ -900,9 +866,9 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 c,
                 dfs["main_frame"].start_x,
                 dfs["main_frame"].end_x,
-                aux_frame.frame_container.start_y,
-                aux_frame.frame_container.start_y,
-                black_color,
+                aux_frame.frame_container.start_y,  # type: ignore
+                aux_frame.frame_container.start_y,  # type: ignore
+                (0, 0, 0),
                 1,
             )
 
@@ -917,20 +883,25 @@ def create_report(filename: str, wagon_values: list[dict], dict_treated_values: 
                 )
                 c.acroForm.textfield(
                     name=f"to_be_centered_{count_item}",
-                    value=f"{col_value}",
+                    value=col_value.replace("<br/>", "\n"),
                     x=aux_frame.frame_container.start_x,
                     y=aux_frame.frame_container.start_y,
                     width=aux_frame.frame_container.width,
                     height=aux_frame.frame_container.height,
-                    **text_field_params,
+                    **dict_text_field_table_params,
                 )
                 count_item += 1
 
         c.showPage()
-
     c.save()
 
-    pdf = PdfReader("temporary.pdf")
+    temp_file = "temporary.pdf"
+    if not os.path.exists(temp_file):
+        print(f"File {temp_file} not found")
+        return
+
+    pdf = PdfReader(temp_file)
+
     pdf.Root.AcroForm.update(PdfDict(NeedAppearances=PdfObject("true")))  # type: ignore
 
     for page in pdf.pages:  # type: ignore
@@ -952,4 +923,17 @@ if __name__ == "__main__":
 
     dict_treated_values = get_treated_values(info_values)
 
-    count_item = create_report("report.pdf", wagon_values + wagon_values + wagon_values, dict_treated_values, repeat_header=False)
+    # This creates a report with with some wagons. The report will have the same header in all pages
+    create_report("report.pdf", wagon_values, info_values, repeat_header=True)
+
+    # Same as before but the header will be only in the first page
+    create_report("report_no_header.pdf", wagon_values, info_values, repeat_header=False)
+
+    # This creates a report totally empty with 100 wagons to be filled by the user
+    create_report("report_empty.pdf", 100, {}, repeat_header=False)
+
+    # This creates a report with only one wagon
+    create_report("report_one_wagon.pdf", wagon_values[:1], info_values, repeat_header=True)
+
+    # This creates a report with many wagons with header in all pages
+    create_report("report_many_wagons.pdf", wagon_values * 10, info_values, repeat_header=True)

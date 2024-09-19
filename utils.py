@@ -2,21 +2,10 @@
 from typing import Any, Tuple
 
 import numpy as np
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Frame, Paragraph, SimpleDocTemplate
 
-A4_width, A4_height = A4
-styles = getSampleStyleSheet()
-dark_green_color = (4 / 255, 145 / 255, 103 / 255)
-
-no_padding_frame_params = {"leftPadding": 0, "topPadding": 0, "rightPadding": 0, "bottomPadding": 0}
-
-solid_green_line_params = {"stroke_color": dark_green_color, "stroke_width": 1, "fill": 0}
-transparent_frame_params = {"stroke_color": colors.white, "stroke_width": 0, "fill": 0}
-solid_black_line_params = {"stroke_color": (0, 0, 0), "stroke_width": 1, "fill": 0}
+from global_vars import A4_height
 
 
 def create_line(canvas, start_x, end_x, start_y, end_y, color, width):
@@ -105,10 +94,6 @@ class FrameComposite:
 
         self.text_fields = []
         self.canvas = canvas
-        if False:
-            print(
-                f"start_x: {self.start_x :.2f}, end_x: {self.end_x:.2f}, start_y: {self.start_y:.2f}, end_y: {self.end_y:.2f} | offset_x: {self.offset_x:.2f}, offset_y: {self.offset_y:.2f}",
-            )
         self.frame_container = FrameContainer(
             canvas,
             self.start_x + self.offset_x,
