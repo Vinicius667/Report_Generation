@@ -1,15 +1,23 @@
-from create_report import create_report, max_num_wagons_per_page
-from test_values import info_values, wagon_values
+from create_report import create_report
+from test_values import info_values, info_values_2, wagon_values
 
-# Test single page
-create_report(wagon_values, info_values, "single_page.pdf")
+# This creates a report with with some wagons. The report will have the same header in all pages
+create_report("report.pdf", wagon_values, info_values, repeat_header=True)
+create_report("report_2.pdf", wagon_values, info_values_2, repeat_header=True)
 
-# Test multiple pages
-wagon_values = wagon_values * max_num_wagons_per_page
-create_report(wagon_values, info_values, "multiple_pages.pdf")
+# Same as before but the header will be only in the first page
+create_report("report_no_header.pdf", wagon_values, info_values, repeat_header=False)
 
-# Test multiple pages with the max number of wagons per page
-wagon_values = wagon_values * 10
-wagon_values = wagon_values[:max_num_wagons_per_page]
+# This creates a report totally empty with 100 wagons to be filled by the user
+create_report("report_empty.pdf", 100, {}, repeat_header=False)
 
-create_report(wagon_values, info_values, "multiple_pages_max.pdf")
+# This creates a report with only one wagon
+create_report("report_one_wagon.pdf", wagon_values[:1], info_values, repeat_header=True)
+
+# This creates a report with many wagons with header in all pages
+create_report("report_many_wagons.pdf", wagon_values * 10, info_values, repeat_header=True)
+
+
+# Next two files will not be created because number of wagons is less than 1
+create_report("report_no_wagons.pdf", [], {})
+create_report("report_no_wagons_2.pdf", 0, {})

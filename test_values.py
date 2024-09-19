@@ -149,3 +149,22 @@ info_values = {
     "Versand_Nr": "007",
     "Ausstellung_durch": "Rail & Sea, Wallerseestrasse 96, AT-5201 Seekirchen",
 }
+
+
+info_values_2 = {
+    "Versandbahnhof_1": "Ogulin",
+    "Versandbahnhof_2": ["Gratwein-Gratkorn"],
+    "Leitungswege": "Test Value......",
+    "Land": "78",
+    "Bahnhof": "754606",
+    "Unternehmen": "3457",
+    "date": ["09", "03", "08"],
+    "Ort": "Ogulin",
+    "Sum_masses": ["560 380", "158 430", "718 810"],
+    "Absender": ["Calcit Lika d.o.o., Crikvenicka 7, HR-53200 Gospic"],
+    "Empfänger": "Sappi Austria Prod.GmbH",
+    "Zu_verzollen_in": "Test Value",
+    "Begleiter": "Test Value",
+    "Versand_Nr": "007",
+    "Ausstellung_durch": "Rail & Sea, Wallerseestrasse 96, AT-5201 Seekirchen",
+}

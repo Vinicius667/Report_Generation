@@ -1,6 +1,6 @@
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet
 
 list_wagon_necessary_keys = ["Wagen", "BezDG", "NHM", "PN", "RID", "NettoMasse", "TaraWagon", "BruttoMasse"]
 

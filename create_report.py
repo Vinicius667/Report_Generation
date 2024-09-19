@@ -1,12 +1,11 @@
 # Import color
 import copy
+import logging
 import os
-from typing import Union
 
 from pdfrw import PdfDict, PdfObject, PdfReader, PdfWriter
-from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 
@@ -44,6 +43,8 @@ from utils import (
     create_matrix,
 )
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 def get_treated_values(info_values: dict) -> dict:
     dict_treated_values = {}
@@ -55,7 +56,7 @@ def get_treated_values(info_values: dict) -> dict:
             elif isinstance(info_values[key], list):
                 dict_treated_values[key] = "<br/>".join(info_values[key])
             else:
-                raise ValueError(f"{key} must be a string or a list")
+                logging.error(f"{key} must be a string or a list. Ignored")
         else:
             dict_treated_values[key] = ""
 
@@ -68,11 +69,11 @@ def get_treated_values(info_values: dict) -> dict:
     return dict_treated_values
 
 
-def create_report(filename: str, wagon_values: list[dict] | int, info_values: dict, repeat_header: bool = True):
+def create_report(filename: str, wagon_values: list[dict] | int, info_values: dict, repeat_header: bool = True) -> int:
     """Create a report with the given values.
 
     Args:
-        wagon_values (list[dict]): List of wagons with the following keys or a integer:
+        wagon_values (list[dict]): List of wagons with the following keys or a integer. When integer is given, the report table will contain this number of empty rows.
             - Wagen: str
             - BezDG (Bezeichnung des Gutes): str
             - NHM: str
@@ -82,26 +83,31 @@ def create_report(filename: str, wagon_values: list[dict] | int, info_values: di
             - TaraWagon: str
             - BruttoMasse: str
 
-        info_values (dict): Dictionary with the following keys:
-            Versandbahnhof_1: str or list of str
-            Versandbahnhof_2: str or list of str
-            Leitungswege: str or list of str
-            Bahnhof: str
-            Unternehmen: str
-            Versand_Nr: str
-            Land: str
-            Ort: str
-            date: List with three values. eg. ["09", "03", "08"]
-            Sum_masses: List with three values. eg. ["560 380", "158 430", "718 810"]
-            Absender: List with one or two values
-            Empfänger: List with one or two values
-            Zu_verzollen_in: List with one or two values
-            Begleiter: List with one or two values
+        info_values (dict): Dictionary with the following keys. When a list is given, each element will be separated by a line break.
+
+            - Versandbahnhof_1: str or list of str
+            - Versandbahnhof_2: str or list of str
+            - Leitungswege: str or list of str
+            - Ort: str or list of str
+            - Bahnhof: str
+            - Unternehmen: str
+            - Versand_Nr: str
+            - Land: str
+            - date: List with three values. eg. ["09", "03", "08"]
+            - Sum_masses: List with three values. eg. ["560 380", "158 430", "718 810"]
+            - Absender: str or list of str
+            - Empfänger: str or list of str
+            - Zu_verzollen_in: str or list of str
+            - Begleiter: str or list of str
 
 
         filename (str, optional): Name of the report.
 
     """
+    if not filename.endswith(".pdf"):
+        filename += ".pdf"
+        logging.warning(f"Filename must end with .pdf. Changed to {filename}")
+
     if isinstance(wagon_values, int):
         empty_wagon = {key: "" for key in list_wagon_necessary_keys}
 
@@ -109,25 +115,22 @@ def create_report(filename: str, wagon_values: list[dict] | int, info_values: di
 
     dict_treated_values = get_treated_values(info_values)
 
-    _create_report(filename, wagon_values, dict_treated_values, repeat_header)
+    return _create_report(filename, wagon_values, dict_treated_values, repeat_header)
 
 
-def _create_report(filename: str, wagon_values: list[dict], dict_treated_values: dict, repeat_header: bool = True):
+def _create_report(filename: str, wagon_values: list[dict], dict_treated_values: dict, repeat_header: bool = True) -> int:
     c = canvas.Canvas("temporary.pdf", pagesize=A4)
 
     wagon_values = copy.deepcopy(wagon_values)
 
     if len(wagon_values) == 0:
-        print("No wagons to create the report. File was NOT created")
-        return
+        logging.error("No wagons to create the report")
+        return 0
 
     last_idx_last_page = 0
     is_last_page = False
     count_item = 0
-    print("______------" * 10)
     while len(wagon_values) > 0:
-        print("______------" * 5)
-        print(f"New page started with {len(wagon_values)} wagons| last_idx_last_page = {last_idx_last_page}")
         dfs: dict[str, FrameComposite] = {}
         dfs["main_frame"] = FrameComposite(
             c,
@@ -329,7 +332,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
             text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
             p.wrap(header_1_col_1_width, 1e6)
-            lines_necessary = max(1, (max(1, (len(p.getActualLineWidths0())))))
+            lines_necessary = max(1, 1, len(p.getActualLineWidths0()))
 
             frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
@@ -897,8 +900,8 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
 
     temp_file = "temporary.pdf"
     if not os.path.exists(temp_file):
-        print(f"File {temp_file} not found")
-        return
+        logging.error(f"File {temp_file} not found")
+        return 0
 
     pdf = PdfReader(temp_file)
 
@@ -915,25 +918,5 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
     if os.path.exists("temporary.pdf"):
         os.remove("temporary.pdf")
 
-    print(f"File created: {filename}")
-
-
-if __name__ == "__main__":
-    from test_values import info_values, wagon_values
-
-    dict_treated_values = get_treated_values(info_values)
-
-    # This creates a report with with some wagons. The report will have the same header in all pages
-    create_report("report.pdf", wagon_values, info_values, repeat_header=True)
-
-    # Same as before but the header will be only in the first page
-    create_report("report_no_header.pdf", wagon_values, info_values, repeat_header=False)
-
-    # This creates a report totally empty with 100 wagons to be filled by the user
-    create_report("report_empty.pdf", 100, {}, repeat_header=False)
-
-    # This creates a report with only one wagon
-    create_report("report_one_wagon.pdf", wagon_values[:1], info_values, repeat_header=True)
-
-    # This creates a report with many wagons with header in all pages
-    create_report("report_many_wagons.pdf", wagon_values * 10, info_values, repeat_header=True)
+    logging.info(f"File created: {filename}")
+    return 1

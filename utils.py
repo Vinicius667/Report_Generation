@@ -1,9 +1,5 @@
-# Import color
-from typing import Any, Tuple
-
-import numpy as np
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Frame, Paragraph, SimpleDocTemplate
+from reportlab.platypus import Frame
 
 from global_vars import A4_height
 
