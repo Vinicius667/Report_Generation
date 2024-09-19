@@ -132,14 +132,15 @@ wagon_values = [
 ]
 
 info_values = {
-    "Versandbahnhof": ["Ogulin", "Gratwein-Gratkorn"],
+    "Versandbahnhof_1": ["Ogulin"],
+    "Versandbahnhof_2": ["Gratwein-Gratkorn"],
     "Leitungswege": "Test Value......",
     "Land": "78",
     "Bahnhof": "754606",
     "Unternehmen": "3457",
     "Versand_Nr": "",
     "date": ["09", "03", "08"],
-    "Ort": "Ogulin",
+    "Ort": ["Ogulin"],
     "Sum_masses": ["560 380", "158 430", "718 810"],
     "Absender": ["Calcit Lika d.o.o.", "Crikvenicka 7, HR-53200 Gospic"],
     "Empfänger": ["Sappi Austria Prod.GmbH", "Brucker Strasse 21, AT-8101 Gratko"],

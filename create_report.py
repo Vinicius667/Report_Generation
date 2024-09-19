@@ -1,9 +1,12 @@
 # Import color
+import os
+
+from pdfrw import PdfDict, PdfObject, PdfReader, PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph, SimpleDocTemplate
+from reportlab.platypus import Paragraph
 
 from utils import (
     A4_height,
@@ -13,7 +16,6 @@ from utils import (
     create_matrix,
     no_padding_frame_params,
     solid_black_line_params,
-    solid_green_line_params,
     transparent_frame_params,
 )
 
@@ -23,19 +25,27 @@ top_margin = 50
 left_margin = 20
 right_margin = 20
 
-table_line_height = 3.5
+main_frame_width = A4_width - left_margin - right_margin
+main_frame_height = A4_height - top_margin - bottom_margin
 
-max_num_wagons_per_page = int(100 // table_line_height) - 1
+header_1_col_1_width = main_frame_width * 0.35
+header_1_title_width = main_frame_width * 0.3
+header_1_col_2_width = main_frame_width * 0.35
+header_2_absender_width = main_frame_width * 0.25
+header_2_empfanger_width = main_frame_width * 0.25
+header_2_zu_verzollen_in_width = main_frame_width * 0.25
+header_2_begleiter_width = main_frame_width * 0.25
+
 
 # Paramenters for the header
 # Offset over the line
-hosy = 2
+hosy = 4
 
 # Offset next to the line
 hosx = 2
 
 # Description height
-hdh = 30
+hdh = 15
 
 # Offset y for the description
 hoyd = 30
@@ -54,6 +64,13 @@ mdh = 30
 moyd = 30
 
 
+text_field_params = {
+    "fillColor": colors.transparent,
+    "borderWidth": 0,
+    "fontName": "Helvetica",
+    "fontSize": 10,
+}
+
 styles = getSampleStyleSheet()
 
 default_style = {
@@ -64,7 +81,7 @@ default_style = {
 }
 
 small_style = {
-    "fontSize": 9,
+    "fontSize": 8,
 }
 
 medium_style = {
@@ -72,567 +89,867 @@ medium_style = {
 }
 
 big_style = {
-    "fontSize": 16,
-    "leading": 18,
+    "fontSize": 14,
+    "leading": 14,
 }
 
 description_style = {**default_style, **small_style}
 
+header_1_value_style = {**default_style, **medium_style}
 
-value_style = {**default_style, **medium_style}
+header_2_value_style = {**default_style, **small_style, "alignment": 0}
 
 title_style = {**default_style, **big_style, "alignment": 1}
+
+wagenliste_description_style = {**default_style, **small_style, "alignment": 1}
+wagenliste_value_style = {**default_style, **small_style, "alignment": 1}
+
+
+dict_field_value_style = {
+    "Versandbahnhof_1": header_1_value_style,
+    "Versandbahnhof_2": header_1_value_style,
+    "Leitungswege": header_1_value_style,
+    "Ort": header_1_value_style,
+    "Ubernahme": header_2_value_style,
+    "Absender": header_2_value_style,
+    "Empfänger": header_2_value_style,
+    "Zu_verzollen_in": header_2_value_style,
+    "Begleiter": header_2_value_style,
+    "Bahnhof": wagenliste_value_style,
+    "Unternehmen": wagenliste_value_style,
+    "Versand_Nr": wagenliste_value_style,
+    "Land": wagenliste_value_style,
+}
+
+
+dict_param_widths = {
+    "Versandbahnhof_1": header_1_col_1_width,
+    "Versandbahnhof_2": header_1_col_1_width,
+    "Leitungswege": header_1_col_1_width,
+    "Ort": header_1_col_2_width,
+    "Ubernahme": header_1_col_2_width,
+    "Absender": header_2_absender_width,
+    "Empfänger": header_2_empfanger_width,
+    "Zu_verzollen_in": header_2_zu_verzollen_in_width,
+    "Begleiter": header_2_begleiter_width,
+}
+
+dict_param_heights = {}
+
+two_line_values = ["Absender", "Empfänger", "Zu_verzollen_in", "Begleiter", "Versandbahnhof_1", "Versandbahnhof_2", "Leitungswege", "Ort"]
+
+
+single_values = ["Bahnhof", "Unternehmen", "Versand_Nr", "Land"]
+
+common_values = two_line_values + single_values
+
+
+dict_positions = {
+    "Versandbahnhof_1": {
+        "parent": "main_frame",
+        "position": {
+            "start_x": 0,
+            "end_x": header_1_col_1_width,
+            "start_y": 0,
+            "end_y": 50,
+        },
+    },
+}
+
+
+# Header parameters
+header_height = 30
+header_width = 100
+
+
+# This a percentage of the height the table body will take
+table_line_height = 3.5
+
+max_num_wagons_per_page = int(100 // table_line_height) - 1
+
 
 black_color = (0, 0, 0)
 
 # PDF setup
 pdf_file = "simple_form.pdf"
-doc = SimpleDocTemplate(pdf_file, pagesize=A4)
-
-common_style_params = {
-    "fontName": "Helvetica",
-    "fontSize": 5,
-    "leading": 5,
-    "alignment": 0,  # Justified text
-    "textColor": colors.black,
-    "spaceAfter": 5,
-    "spaceBefore": 0,
-}
-
-
-def create_page(c: canvas.Canvas, wagon_values, dict_treated_values, last_page=False, last_idx_last_page: int = 0):
-    main_frame = FrameComposite(
-        c,
-        left_margin,
-        A4_width - left_margin,
-        bottom_margin,
-        A4_height - top_margin,
-        black_color,
-        1,
-    )
-
-    dfs = {}
-    frames_header = {
-        "Versandbahnhof_1_frame": {
-            "frame_parent": main_frame,
-            "position": ((0, 35), (0, 6)),
-        },
-        "Versandbahnhof_2_frame": {
-            "frame_parent": main_frame,
-            "position": ((0, 35), (6, 12)),
-        },
-        "Leitungswege_frame": {
-            "frame_parent": main_frame,
-            "position": ((0, 35), (12, 18)),
-        },
-        "Ort_frame": {
-            "frame_parent": main_frame,
-            "position": ((65, 100), (12, 18)),
-        },
-        "Wagenliste_frame": {
-            "frame_parent": main_frame,
-            "position": ((35, 65), (0, 18)),
-        },
-        "Ubernahme_frame": {
-            "frame_parent": main_frame,
-            "position": ((65, 100), (0, 12)),
-        },
-        "Absender_frame": {
-            "frame_parent": main_frame,
-            "position": ((0, 28), (18, 24)),
-            "text": "Absender",
-        },
-        "Empfänger_frame": {
-            "frame_parent": main_frame,
-            "position": ((28, 56), (18, 24)),
-            "text": "Empfänger",
-        },
-        "Zu_verzollen_in_frame": {
-            "frame_parent": main_frame,
-            "position": ((56, 75), (18, 24)),
-            "text": "Zu verzollen in",
-        },
-        "Begleiter": {
-            "frame_parent": main_frame,
-            "position": ((75, 100), (18, 24)),
-            "text": "Begleiter (Name, Vorname)",
-        },
-    }
-
-    for key, value in frames_header.items():
-        dfs[key] = create_matrix(c, value["frame_parent"], [value["position"]], {**solid_black_line_params, **no_padding_frame_params})[0]
-
-    frames_header_descripitions = {
-        "Versandbahnhof_1_description": {
-            "frame_parent": dfs["Versandbahnhof_1_frame"],
-            "position": ((hosx, 100), (hosy, hdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Versandbahnhof",
-        },
-        "Versandbahnhof_2_description": {
-            "frame_parent": dfs["Versandbahnhof_2_frame"],
-            "position": ((hosx, 100), (hosy, hdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Versandbahnhof",
-        },
-        "Leitungswege_frame_description": {
-            "frame_parent": dfs["Leitungswege_frame"],
-            "position": ((hosx, 100), (hosy, hdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Leitungswege",
-        },
-        "Ort_frame_description": {
-            "frame_parent": dfs["Ort_frame"],
-            "position": ((hosx, 100), (hosy, hdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Ort",
-        },
-        "Ubernahme_frame_description": {
-            "frame_parent": dfs["Ubernahme_frame"],
-            "position": ((0, 100), (hosy, hdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": {**description_style, "alignment": 1},
-            "text": "Übernahme Monat - Tag - Stunde",
-        },
-        "Absender_frame_description": {
-            "frame_parent": dfs["Absender_frame"],
-            "position": ((mosx, 100), (mosy, mdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Absender",
-        },
-        "Empfänger_frame_description": {
-            "frame_parent": dfs["Empfänger_frame"],
-            "position": ((mosx, 100), (mosy, mdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Empfänger",
-        },
-        "Zu_verzollen_in_frame_description": {
-            "frame_parent": dfs["Zu_verzollen_in_frame"],
-            "position": ((mosx, 100), (mosy, mdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Zu verzollen in",
-        },
-        "Begleiter_frame_description": {
-            "frame_parent": dfs["Begleiter"],
-            "position": ((mosx, 100), (mosy, mdh)),
-            "params": {**transparent_frame_params, **no_padding_frame_params},
-            "text_style": description_style,
-            "text": "Begleiter (Name, Vorname)",
-        },
-    }
-    for key, value in frames_header_descripitions.items():
-        dfs[key] = create_matrix(c, value["frame_parent"], [value["position"]], value["params"])[0]
-        dfs[key].frame_container.frame.addFromList(
-            [
-                Paragraph(value["text"], style=ParagraphStyle(**value["text_style"])),
-            ],
-            c,
-        )
-
-    frames_Wagenliste = {
-        "Bahnhof_frame": {
-            "frame_parent": dfs["Wagenliste_frame"],
-            "position": ((0, 50), (35, 65)),
-            "text": "Bahnhof",
-        },
-        "Unternehmen_frame": {
-            "frame_parent": dfs["Wagenliste_frame"],
-            "position": ((50, 100), (35, 65)),
-            "text": "Unternehmen",
-        },
-        "Versand_Nr_frame": {
-            "frame_parent": dfs["Wagenliste_frame"],
-            "position": ((0, 50), (65, 95)),
-            "text": "Versand Nr.",
-        },
-        "land_frame": {
-            "frame_parent": dfs["Wagenliste_frame"],
-            "position": ((50, 100), (65, 95)),
-            "text": "Land",
-        },
-    }
-
-    for key, value in frames_Wagenliste.items():
-        dfs[key] = create_matrix(c, value["frame_parent"], [value["position"]], {**transparent_frame_params, **no_padding_frame_params})[0]
-        dfs[key].frame_container.frame.addFromList(
-            [
-                Paragraph(value["text"], style=ParagraphStyle(**{**description_style, "alignment": 1})),
-            ],
-            c,
-        )
-
-    dfs["title_frame"] = create_matrix(c, dfs["Wagenliste_frame"], [((0, 100), (0, 30))], {**transparent_frame_params, **no_padding_frame_params})[0]
-
-    dfs["title_frame"].frame_container.frame.addFromList(
-        [
-            Paragraph("<b>Wagenliste zum Frachtbrief</b>", style=ParagraphStyle(**title_style)),
-        ],
-        c,
-    )
-
-    values_header = {
-        "Versandbahnhof_1_value": {
-            "frame_parent": dfs["Versandbahnhof_1_frame"],
-            "position": ((hosx, 100), (hdh, 100)),
-            "text": ["<br/>" + dict_treated_values["Versandbahnhof"][0]],
-            "text_params": {**value_style, "alignment": 0},
-        },
-        "Versandbahnhof_2_value": {
-            "frame_parent": dfs["Versandbahnhof_2_frame"],
-            "position": ((hosx, 100), (hdh, 100)),
-            "text": ["<br/>" + dict_treated_values["Versandbahnhof"][1]],
-            "text_params": {**value_style, "alignment": 0},
-        },
-        "Leitungswege_value": {
-            "frame_parent": dfs["Leitungswege_frame"],
-            "position": ((hosx, 100), (hdh, 100)),
-            "text": dict_treated_values["Leitungswege"],
-            "text_params": {**value_style, "alignment": 0},
-        },
-        "Ort_value": {
-            "frame_parent": dfs["Ort_frame"],
-            "position": ((hosx, 100), (hdh, 100)),
-            "text": dict_treated_values["Ort"],
-            "text_params": {**value_style, "alignment": 0},
-        },
-        "Ubernahme_value": {
-            "frame_parent": dfs["Ubernahme_frame"],
-            "position": ((0, 100), (hdh, 100)),
-            "text": [f"{dict_treated_values['date'][0]}  {dict_treated_values['date'][1]}  {dict_treated_values['date'][2]}"],
-            "text_params": {**value_style, "alignment": 1},
-        },
-        "Absender_value": {
-            "frame_parent": dfs["Absender_frame"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Absender"],
-            "text_params": {**description_style, "alignment": 0},
-        },
-        "Empfänger_value": {
-            "frame_parent": dfs["Empfänger_frame"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Empfänger"],
-            "text_params": {**description_style, "alignment": 0},
-        },
-        "Zu_verzollen_in_value": {
-            "frame_parent": dfs["Zu_verzollen_in_frame"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Zu_verzollen_in"],
-            "text_params": {**description_style, "alignment": 0},
-        },
-        "Begleiter_value": {
-            "frame_parent": dfs["Begleiter"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Begleiter"],
-            "text_params": {**description_style, "alignment": 0},
-        },
-        "Bahnhof_value": {
-            "frame_parent": dfs["Bahnhof_frame"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Bahnhof"],
-            "text_params": {**description_style, "alignment": 1},
-        },
-        "Unternehmen_value": {
-            "frame_parent": dfs["Unternehmen_frame"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Unternehmen"],
-            "text_params": {**description_style, "alignment": 1},
-        },
-        "Versand_Nr_value": {
-            "frame_parent": dfs["Versand_Nr_frame"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Versand_Nr"],
-            "text_params": {**description_style, "alignment": 1},
-        },
-        "Land_value": {
-            "frame_parent": dfs["land_frame"],
-            "position": ((mosx, 100), (moyd, 100)),
-            "text": dict_treated_values["Land"],
-            "text_params": {**description_style, "alignment": 1},
-        },
-    }
-
-    for key, value in values_header.items():
-        dfs[key] = create_matrix(c, value["frame_parent"], [value["position"]], {**transparent_frame_params, **no_padding_frame_params})[0]
-        dfs[key].frame_container.frame.addFromList(
-            [Paragraph(f"{text}", style=ParagraphStyle(**value["text_params"])) for text in value["text"]],
-            c,
-        )
-
-    table_frame, foot_frame = create_matrix(
-        c,
-        main_frame,
-        [((0, 100), (24, 95)), ((0, 100), (95, 100))],
-        {**solid_green_line_params, **no_padding_frame_params},
-    )
-
-    dict_col_params = {
-        "No.": {"col_name": "No.", "position": ((0, 4), (0, 100)), "offset": 40},
-        "Wagen": {"col_name": "Wagen", "position": ((4, 23), (0, 100)), "offset": 40},
-        "BezDG": {"col_name": "Bezeichnung des Gutes", "position": ((23, 44), (0, 100)), "offset": 40},
-        "NHM": {"col_name": "NHM", "position": ((44, 52), (0, 100)), "offset": 40},
-        "PN": {"col_name": "Plomben Nummer", "position": ((52, 62), (0, 100)), "offset": 20},
-        "RID": {"col_name": "RID", "position": ((62, 64), (0, 100)), "offset": 5},
-        "NettoMasse": {"col_name": "Netto Masse", "position": ((64, 76), (0, 100)), "offset": 40},
-        "TaraWagon": {"col_name": "Tara Wagon", "position": ((76, 88), (0, 100)), "offset": 40},
-        "BruttoMasse": {"col_name": "Brutto Masse", "position": ((88, 100), (0, 100)), "offset": 40},
-    }
-
-    for key, value in dict_col_params.items():
-        dfs[key + "_frame"] = create_matrix(c, table_frame, [value["position"]], {**solid_black_line_params, **no_padding_frame_params})[0]
-
-        dfs[key + "_frame_description"] = create_matrix(
-            c,
-            dfs[key + "_frame"],
-            [((0, 100), (0, 8))],
-            {**solid_black_line_params, **no_padding_frame_params},
-        )[0]
-
-        dfs[key + "_frame_values"] = create_matrix(
-            c,
-            dfs[key + "_frame"],
-            [((0, 100), (8, 100))],
-            {**solid_black_line_params, **no_padding_frame_params},
-        )[0]
-
-        aux = create_matrix(
-            c,
-            dfs[key + "_frame_description"],
-            [((0, 100), (value["offset"], 100))],
-            {**transparent_frame_params, **no_padding_frame_params},
-        )[0]
-        if key != "RID":
-            aux.frame_container.frame.addFromList(
-                [
-                    Paragraph(f"{value['col_name']}", style=ParagraphStyle(**{**description_style, "alignment": 1})),
-                ],
-                c,
-            )
-        else:
-            aux.frame_container.frame.addFromList(
-                [Paragraph(f"{aux}", style=ParagraphStyle(**{**description_style, "alignment": 1})) for aux in value["col_name"]],
-                c,
-            )
-
-    for row_idx, wagon in enumerate(wagon_values):
-        start_y = table_line_height * row_idx + 0.5
-        end_y = table_line_height * (row_idx + 1) + 0.5
-
-        for col_idx, row_name in enumerate(dict_col_params.keys()):
-            row_col_frame = create_matrix(
-                c,
-                dfs[row_name + "_frame_values"],
-                [((0, 100), (start_y, end_y))],
-                {**transparent_frame_params, **no_padding_frame_params},
-            )[0]
-
-            value = wagon.get(row_name, "") if row_name != "No." else row_idx + 1 + last_idx_last_page
-
-            row_col_frame.frame_container.frame.addFromList(
-                [
-                    Paragraph(f"{value}", style=ParagraphStyle(**{**description_style, "alignment": 1})),
-                ],
-                c,
-            )
-
-    left_foot, right_foot = create_matrix(
-        c,
-        foot_frame,
-        [((0, 50), (0, 100)), ((50, 100), (0, 100))],
-        {**solid_black_line_params, "leftPadding": 5, "rightPadding": 5, "topPadding": 5, "bottomPadding": 5},
-    )
-
-    left_foot.frame_container.frame.addFromList(
-        [
-            Paragraph("Ausstellung durch", style=ParagraphStyle(**{**description_style, "alignment": 0})),
-            Paragraph("Rail & Sea, Wallerseestrasse 96, AT-5201 Seekirchen", style=ParagraphStyle(**{**value_style, "alignment": 0})),
-        ],
-        c,
-    )
-
-    date = dict_treated_values["date"]
-
-    right_foot.frame_container.frame.addFromList(
-        [
-            Paragraph("Ort, Datum und Unterschrift", style=ParagraphStyle(**{**description_style, "alignment": 0})),
-            Paragraph(f"Seekirchen am {date[0]}.{date[1]}.{date[2]}", style=ParagraphStyle(**{**value_style, "alignment": 0})),
-        ],
-        c,
-    )
-
-    bottom_frame = FrameComposite(
-        c,
-        left_margin,
-        A4_width - left_margin,
-        0,
-        bottom_margin - 3,
-        (1, 0, 0),
-        0,
-    )
-
-    left_bottom, right_bottom = create_matrix(
-        c,
-        bottom_frame,
-        [((0, 50), (0, 100)), ((50, 100), (0, 100))],
-        {**transparent_frame_params, **no_padding_frame_params},
-    )
-
-    left_bottom.frame_container.frame.addFromList(
-        [
-            Paragraph("Nur für den kombinierten Verkehr", style=ParagraphStyle(**{**description_style, "alignment": 0})),
-        ],
-        c,
-    )
-
-    right_bottom.frame_container.frame.addFromList(
-        [
-            Paragraph("CIT-23", style=ParagraphStyle(**{**description_style, "alignment": 2})),
-        ],
-        c,
-    )
-
-    if last_page:
-        c.setDash(1, 1)
-        create_line(
-            c,
-            table_frame.start_x,
-            table_frame.end_x,
-            row_col_frame.frame_container.container_start_y,  # type: ignore
-            row_col_frame.frame_container.container_start_y,  # type: ignore
-            black_color,
-            2,
-        )  # ignore
-
-        start_y += 5  # type: ignore # ignore
-        end_y += 5  # type: ignore
-
-        masses = dict_treated_values["Sum_masses"]
-        for col_name, col_value in zip(["PN", "NettoMasse", "TaraWagon", "BruttoMasse"], ["Sum:"] + masses, strict=False):
-            row_col_frame = create_matrix(
-                c,
-                dfs[col_name + "_frame_values"],
-                [((0, 100), (start_y, end_y))],
-                {**transparent_frame_params, **no_padding_frame_params},
-            )[0]
-
-            row_col_frame.frame_container.frame.addFromList(
-                [
-                    Paragraph(f"{col_value}", style=ParagraphStyle(**{**description_style, "alignment": 1})),
-                ],
-                c,
-            )
-
-    c.showPage()
 
 
 def get_treated_values(info_values: dict) -> dict:
     dict_treated_values = {}
 
-    aux = info_values.get("Versandbahnhof", ["", ""])
-    if len(aux) == 1:
-        aux.append("")
-
-    dict_treated_values["Versandbahnhof"] = aux
-
-    two_line_values = ["Absender", "Empfänger", "Zu_verzollen_in", "Begleiter"]
-
-    for key in two_line_values:
-        value = info_values.get(key, ["", ""])
-        if len(value) == 1:
-            dict_treated_values[key] = ["<br/>" + value[0]]
+    for key in two_line_values + single_values:
+        if key in info_values:
+            if isinstance(info_values[key], str):
+                dict_treated_values[key] = info_values[key]
+            elif isinstance(info_values[key], list):
+                dict_treated_values[key] = "<br/>".join(info_values[key])
+            else:
+                raise ValueError(f"{key} must be a string or a list")
         else:
-            dict_treated_values[key] = value
-
-    single_line_values = ["Leitungswege", "Ort"]
-
-    for key in single_line_values:
-        if (key in info_values) and not isinstance(info_values[key], str):
-            raise ValueError(f"{key} must be a string")
-        dict_treated_values[key] = ["<br/>" + info_values.get(key, "")]
-
-    dict_treated_values["Sum_masses"] = info_values.get("Sum_masses", ["", "", ""])
+            dict_treated_values[key] = ""
 
     date = info_values.get("date", ["", "", ""])
+    sum_masses = info_values.get("Sum_masses", ["", "", ""])
 
-    for key in ["Land", "Bahnhof", "Unternehmen", "Versand_Nr"]:
-        value = info_values.get(key, "")
-        if not isinstance(info_values.get(value, ""), str):
-            raise ValueError(f"{value} must be a string")
-        dict_treated_values[key] = [value]
+    dict_treated_values["Sum_masses"] = sum_masses
 
     dict_treated_values["date"] = date
-
-    if len(date) != 3:
-        raise ValueError("Date must have 3 values")
-
-    if len(dict_treated_values["Sum_masses"]) != 3:
-        raise ValueError("Sum_masses must have 3 values")
 
     return dict_treated_values
 
 
-def create_report(wagon_values: list[dict], info_values: dict, report_name: str = "report.pdf"):
-    """Create a report with the given values.
+def create_report(filename: str, wagon_values: list[dict], dict_treated_values: dict, repeat_header: bool = True):
+    c = canvas.Canvas("temporary.pdf", pagesize=A4)
 
-    Args:
-        wagon_values (list[dict]): List of wagons with the following keys:
-            - Wagen: str
-            - BezDG (Bezeichnung des Gutes): str
-            - NHM: str
-            - PN: str
-            - RID: str
-            - NettoMasse: str
-            - TaraWagon: str
-            - BruttoMasse: str
-
-        info_values (dict): Dictionary with the following keys:
-            Versandbahnhof: List with two values
-            Leitungswege: str
-            Land: str
-            Bahnhof: str
-            Unternehmen: str
-            Versand_Nr: str
-            date: List with three values. eg. ["09", "03", "08"]
-            Ort: str
-            Sum_masses: List with three values. eg. ["560 380", "158 430", "718 810"]
-            Absender: List with one or two values
-            Empfänger: List with one or two values
-            Zu_verzollen_in: List with one or two values
-            Begleiter: List with one or two values
-
-
-        report_name (str, optional): Name of the report. Defaults to "report.pdf".
-
-    """
-    if len(wagon_values) == 0:
-        raise ValueError("Wagon values must have at least one element")
-    from math import ceil
-
-    dict_treated_values = get_treated_values(info_values)
-    c = canvas.Canvas(report_name, pagesize=A4)
-    batch_size = max_num_wagons_per_page
-    quant_wagons = len(wagon_values)
-    batch_config = []
-    quant_pages = ceil(quant_wagons / max_num_wagons_per_page)
-
-    for i in range(quant_pages):
-        batch_config.append(
-            [
-                max_num_wagons_per_page * i,
-                max_num_wagons_per_page * (i + 1),
-                False,
-            ],
+    count_wagons_missing = len(wagon_values)
+    last_idx_last_page = 0
+    is_last_page = False
+    count_item = 0
+    while count_wagons_missing > 0:
+        dfs: dict[str, FrameComposite] = {}
+        dfs["main_frame"] = FrameComposite(
+            c,
+            left_margin,
+            A4_width - left_margin,
+            bottom_margin,
+            A4_height - top_margin,
+            (1, 0, 0),
+            1,
         )
-    batch_config[-1][-1] = True
 
-    for start, end, last_page in batch_config:
-        print(f"Creating page for wagons {start} to {end -1}")
-        create_page(c, wagon_values[start:end], dict_treated_values, last_page, last_idx_last_page=start)
+        must_add_header = repeat_header or last_idx_last_page == 0
+        frame_style = {**solid_black_line_params, **no_padding_frame_params}
+        frame_description_style = {**transparent_frame_params, **no_padding_frame_params}
+        frame_value_style = {**transparent_frame_params, **no_padding_frame_params}
+        if must_add_header:
+            text_description_style = description_style
+
+            frame_description_text = "Versandbahnhof"
+            frame_description_height = 1.5 * text_description_style["fontSize"]
+            frame_description_position = {
+                "start_x": hosx,
+                "end_x": header_1_col_1_width,
+                "start_y": hosy,
+                "end_y": frame_description_height + hosy,
+            }
+
+            parent_frame = "main_frame"
+
+            frame_description_name = "Versandbahnhof_1_description"
+
+            dfs[frame_description_name] = dfs["main_frame"].add_frame(
+                c,
+                **frame_description_position,
+                **frame_description_style,
+            )
+
+            dfs[frame_description_name].frame_container.frame.add(
+                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                c,
+            )
+
+            min_height = 30
+
+            frame_value_text = dict_treated_values["Versandbahnhof_1"]
+            text_value_style = header_1_value_style
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+            p.wrap(header_1_col_1_width, 1e6)
+            lines_necessary = len(p.getActualLineWidths0())
+
+            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+
+            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+
+            start_y = 0
+            end_y = frame_height
+
+            frame_position = {
+                "start_x": 0,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Versandbahnhof_1_frame"] = dfs["main_frame"].add_frame(
+                c,
+                **frame_position,
+                **frame_style,
+            )
+
+            end_y = dfs["Versandbahnhof_1_frame"].end_y - hosy
+
+            start_y = end_y - frame_value_height
+
+            frame_value_position = {
+                "start_x": hosx,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Versandbahnhof_1_value"] = dfs["main_frame"].add_frame(
+                c,
+                **frame_value_position,
+                **frame_value_style,
+            )
+
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+
+            dfs["Versandbahnhof_1_value"].frame_container.frame.add(p, c)
+
+            frame_description_text = "Versandbahnhof"
+            frame_description_height = 1.5 * text_description_style["fontSize"]
+
+            start_y = hosy + dfs["Versandbahnhof_1_frame"].end_y
+            end_y = start_y + frame_description_height
+
+            frame_description_position = {
+                "start_x": hosx,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Versandbahnhof_2_description"] = dfs["main_frame"].add_frame(
+                c,
+                **frame_description_position,
+                **frame_description_style,
+            )
+
+            dfs["Versandbahnhof_2_description"].frame_container.frame.add(
+                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                c,
+            )
+
+            min_height = 30
+
+            frame_value_text = dict_treated_values["Versandbahnhof_2"]
+            text_value_style = header_1_value_style
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+            p.wrap(header_1_col_1_width, 1e6)
+            lines_necessary = len(p.getActualLineWidths0())
+
+            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+
+            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+
+            start_y = dfs["Versandbahnhof_1_frame"].end_y
+            end_y = start_y + frame_height
+
+            frame_position = {
+                "start_x": 0,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Versandbahnhof_2_frame"] = dfs[parent_frame].add_frame(
+                c,
+                **frame_position,
+                **frame_style,
+            )
+
+            end_y = dfs["Versandbahnhof_2_frame"].end_y - hosy
+            start_y = end_y - frame_value_height
+
+            frame_value_position = {
+                "start_x": hosx,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Versandbahnhof_2_value"] = dfs[parent_frame].add_frame(
+                c,
+                **frame_value_position,
+                **frame_value_style,
+            )
+
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+
+            dfs["Versandbahnhof_2_value"].frame_container.frame.add(p, c)
+
+            frame_description_text = "Leitungswege"
+            frame_description_height = 1.5 * text_description_style["fontSize"]
+
+            start_y = hosy + dfs["Versandbahnhof_2_frame"].end_y
+            end_y = start_y + frame_description_height
+
+            frame_description_position = {
+                "start_x": hosx,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            frame_description_name = "Leitungswege_frame_description"
+
+            dfs[frame_description_name] = dfs["main_frame"].add_frame(
+                c,
+                **frame_description_position,
+                **frame_description_style,
+            )
+
+            dfs[frame_description_name].frame_container.frame.add(
+                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                c,
+            )
+
+            min_height = 30
+
+            frame_value_text = dict_treated_values["Leitungswege"]
+            text_value_style = header_1_value_style
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+            p.wrap(header_1_col_1_width, 1e6)
+            lines_necessary = len(p.getActualLineWidths0())
+
+            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+
+            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+
+            start_y = dfs["Versandbahnhof_2_frame"].end_y
+            end_y = start_y + frame_height
+
+            frame_position = {
+                "start_x": 0,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Leitungswege_frame"] = dfs["main_frame"].add_frame(
+                c,
+                **frame_position,
+                **frame_style,
+            )
+
+            end_y = dfs["Leitungswege_frame"].end_y - hosy
+            start_y = end_y - frame_value_height
+
+            frame_value_position = {
+                "start_x": hosx,
+                "end_x": header_1_col_1_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Leitungswege_value"] = dfs["main_frame"].add_frame(
+                c,
+                **frame_value_position,
+                **frame_value_style,
+            )
+
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+
+            dfs["Leitungswege_value"].frame_container.frame.add(p, c)
+
+            frame_description_text = "Ort"
+            text_description_style = description_style
+            frame_style = {**solid_black_line_params, **no_padding_frame_params}
+            frame_description_height = 1.5 * text_description_style["fontSize"]
+
+            frame_value_text = dict_treated_values["Ort"]
+            text_value_style = header_1_value_style
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+            p.wrap(header_1_col_1_width, 1e6)
+            lines_necessary = len(p.getActualLineWidths0())
+
+            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+
+            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+
+            end_y = dfs["Leitungswege_frame"].end_y
+            start_y = end_y - frame_height
+
+            frame_position = {
+                "start_x": header_1_col_1_width + header_1_title_width,
+                "end_x": header_1_col_1_width + header_1_title_width + header_1_col_2_width,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Ort_frame"] = dfs["main_frame"].add_frame(
+                c,
+                **frame_position,
+                **frame_style,
+            )
+
+            min_height = 30
+
+            frame_value_text = dict_treated_values["Ort"]
+            text_value_style = header_1_value_style
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+            p.wrap(header_1_col_1_width, 1e6)
+            lines_necessary = len(p.getActualLineWidths0())
+
+            frame_value_height = 1.1 * text_value_style["fontSize"] * lines_necessary
+
+            end_y = dfs["Ort_frame"].end_y - hosy
+            start_y = end_y - frame_value_height
+
+            frame_value_position = {
+                "start_x": dfs["Ort_frame"].start_x + hosx,
+                "end_x": dfs["Ort_frame"].end_x,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            frame_value_name = "Ort_value"
+
+            dfs[frame_value_name] = dfs[parent_frame].add_frame(
+                c,
+                **frame_value_position,
+                **frame_value_style,
+            )
+
+            p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
+
+            dfs[frame_value_name].frame_container.frame.add(p, c)
+
+            frame_description_text = "Ort"
+            text_description_style = description_style
+            frame_style = {**solid_black_line_params, **no_padding_frame_params}
+            frame_description_height = 1.5 * text_description_style["fontSize"]
+
+            start_y = hosy + dfs["Ort_frame"].start_y
+            end_y = start_y + frame_description_height
+
+            frame_description_position = {
+                "start_x": dfs["Ort_frame"].start_x + hosx,
+                "end_x": dfs["Ort_frame"].end_x,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            frame_description_name = "Ort_frame_description"
+
+            dfs[frame_description_name] = dfs["main_frame"].add_frame(
+                c,
+                **frame_description_position,
+                **frame_description_style,
+            )
+
+            dfs[frame_description_name].frame_container.frame.add(
+                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                c,
+            )
+
+            frame_name = "Übernahme_frame"
+            frame_style = {**solid_black_line_params, **no_padding_frame_params}
+
+            start_x = dfs["Ort_frame"].start_x
+            end_x = dfs["Ort_frame"].end_x
+            end_y = dfs["Ort_frame"].start_y
+            start_y = 0
+
+            frame_position = {
+                "start_x": start_x,
+                "end_x": end_x,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs[frame_name] = dfs[parent_frame].add_frame(
+                c,
+                **frame_position,
+                **frame_style,
+            )
+
+            frame_description_text = "Übernahme Monat - Tag - Stunde"
+            text_description_style = {**description_style, "alignment": 1}
+            frame_style = {**solid_black_line_params, **no_padding_frame_params}
+            frame_description_height = 1.5 * text_description_style["fontSize"]
+
+            start_y = hosy
+            end_y = start_y + frame_description_height
+            frame_description_position = {
+                "start_x": dfs["Ort_frame"].start_x,
+                "end_x": dfs["Ort_frame"].end_x,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            parent_frame = "main_frame"
+
+            frame_description_name = "Ubernahme_frame_description"
+
+            dfs[frame_description_name] = dfs[parent_frame].add_frame(
+                c,
+                **frame_description_position,
+                **frame_description_style,
+            )
+
+            dfs[frame_description_name].frame_container.frame.add(
+                Paragraph(frame_description_text, style=ParagraphStyle(**text_description_style)),
+                c,
+            )
+
+            date = dict_treated_values["date"]
+            frame_value_text = f"{date[0]}  {date[1]}  {date[2]}"
+
+            start_y = 2 * hosy + dfs["Ubernahme_frame_description"].end_y
+            end_y = start_y + frame_description_height
+
+            frame_value_position = {
+                "start_x": dfs["Ort_frame"].start_x,
+                "end_x": dfs["Ort_frame"].end_x,
+                "start_y": start_y,
+                "end_y": end_y,
+            }
+
+            dfs["Ubernahme_value"] = dfs[parent_frame].add_frame(
+                c,
+                **frame_value_position,
+                **frame_value_style,
+            )
+
+            dfs["Ubernahme_value"].frame_container.frame.add(
+                Paragraph(frame_value_text, style=ParagraphStyle(**{**text_value_style, "alignment": 1})),
+                c,
+            )
+
+            frame_style = {**solid_black_line_params, **no_padding_frame_params}
+            dfs["Wagenliste_frame"] = dfs["main_frame"].add_frame(
+                c,
+                dfs["Versandbahnhof_1_frame"].end_x,
+                dfs["Ort_frame"].start_x,
+                dfs["Versandbahnhof_1_frame"].start_y,
+                dfs["Ort_frame"].end_y,
+                **frame_style,
+            )
+
+            frames_Wagenliste = {
+                "title_frameBahnhof_frame": {
+                    "position": ((0, 100), (5, 30)),
+                    "text": "<b>Wagenliste zum Frachtbrief</b>",
+                    "text_style": {**title_style},
+                },
+                "Bahnhof_frame": {
+                    "position": ((0, 50), (35, 65)),
+                    "text": "Bahnhof",
+                    "text_style": {**description_style, "alignment": 1},
+                },
+                "Unternehmen_frame": {
+                    "position": ((50, 100), (35, 65)),
+                    "text": "Unternehmen",
+                    "text_style": {**description_style, "alignment": 1},
+                },
+                "Versand_Nr_frame": {
+                    "position": ((0, 50), (65, 95)),
+                    "text": "Versand Nr.",
+                    "text_style": {**description_style, "alignment": 1},
+                },
+                "land_frame": {
+                    "position": ((50, 100), (65, 95)),
+                    "text": "Land",
+                    "text_style": {**description_style, "alignment": 1},
+                },
+            }
+
+            for key, value in frames_Wagenliste.items():
+                dfs[key] = create_matrix(
+                    c,
+                    dfs["Wagenliste_frame"],
+                    [value["position"]],
+                    {**transparent_frame_params, **no_padding_frame_params},
+                )[0]
+
+                dfs[key].frame_container.frame.add(
+                    Paragraph(value["text"], style=ParagraphStyle(**value["text_style"])),
+                    c,
+                )
+            values_header = {
+                "Bahnhof_value": {
+                    "frame_parent": "Bahnhof_frame",
+                    "position": ((0, 100), (moyd, 100)),
+                    "text": dict_treated_values["Bahnhof"],
+                    "text_style": {**description_style, "alignment": 1},
+                },
+                "Unternehmen_value": {
+                    "frame_parent": "Unternehmen_frame",
+                    "position": ((0, 100), (moyd, 100)),
+                    "text": dict_treated_values["Unternehmen"],
+                    "text_style": {**description_style, "alignment": 1},
+                },
+                "Versand_Nr_value": {
+                    "frame_parent": "Versand_Nr_frame",
+                    "position": ((0, 100), (moyd, 100)),
+                    "text": dict_treated_values["Versand_Nr"],
+                    "text_style": {**description_style, "alignment": 1},
+                },
+                "Land_value": {
+                    "frame_parent": "land_frame",
+                    "position": ((0, 100), (moyd, 100)),
+                    "text": dict_treated_values["Land"],
+                    "text_style": {**description_style, "alignment": 1},
+                },
+            }
+
+            for key, value in values_header.items():
+                dfs[key] = create_matrix(
+                    c,
+                    dfs[value["frame_parent"]],
+                    [value["position"]],
+                    {**transparent_frame_params, **no_padding_frame_params},
+                )[0]
+
+                dfs[key].frame_container.frame.add(
+                    Paragraph(value["text"], style=ParagraphStyle(**value["text_style"])),
+                    c,
+                )
+
+            offset_y_start_table = dfs["Ort_frame"].end_y
+        else:
+            offset_y_start_table = 0
+
+        foot_height = 40
+        dfs["table_frame"] = dfs["main_frame"].add_frame(
+            c,
+            0,
+            dfs["main_frame"].frame_container.width,
+            offset_y_start_table,
+            dfs["main_frame"].frame_container.height - foot_height,
+            **{**solid_black_line_params, **no_padding_frame_params},
+        )
+
+        dfs["foot_frame"] = dfs["main_frame"].add_frame(
+            c,
+            0,
+            dfs["main_frame"].frame_container.width,
+            dfs["main_frame"].frame_container.height - foot_height,
+            dfs["main_frame"].frame_container.height,
+            **{**solid_black_line_params, **no_padding_frame_params},
+        )
+
+        left_foot, right_foot = create_matrix(
+            c,
+            dfs["foot_frame"],
+            [((0, 50), (0, 100)), ((50, 100), (0, 100))],
+            {**solid_black_line_params, "leftPadding": 5, "rightPadding": 5, "topPadding": 5, "bottomPadding": 5},
+        )
+
+        left_foot.frame_container.frame.addFromList(
+            [
+                Paragraph("Ausstellung durch", style=ParagraphStyle(**{**description_style, "alignment": 0})),
+                Paragraph("Rail & Sea, Wallerseestrasse 96, AT-5201 Seekirchen", style=ParagraphStyle(**{**header_1_value_style, "alignment": 0})),
+            ],
+            c,
+        )
+
+        date = dict_treated_values["date"]
+
+        right_foot.frame_container.frame.addFromList(
+            [
+                Paragraph("Ort, Datum und Unterschrift", style=ParagraphStyle(**{**description_style, "alignment": 0})),
+                Paragraph(f"Seekirchen am {date[0]}.{date[1]}.{date[2]}", style=ParagraphStyle(**{**header_1_value_style, "alignment": 0})),
+            ],
+            c,
+        )
+
+        bottom_frame = dfs["main_frame"].add_frame(
+            c,
+            0,
+            dfs["main_frame"].frame_container.width,
+            dfs["main_frame"].frame_container.height + 2,
+            dfs["main_frame"].frame_container.height + 20,
+            **{**transparent_frame_params, **no_padding_frame_params},
+        )
+
+        left_bottom, right_bottom = create_matrix(
+            c,
+            bottom_frame,
+            [((0, 50), (0, 100)), ((50, 100), (0, 100))],
+            {**transparent_frame_params, **no_padding_frame_params},
+        )
+
+        left_bottom.frame_container.frame.addFromList(
+            [
+                Paragraph("Nur für den kombinierten Verkehr", style=ParagraphStyle(**{**description_style, "alignment": 0})),
+            ],
+            c,
+        )
+
+        right_bottom.frame_container.frame.addFromList(
+            [
+                Paragraph("CIT-23", style=ParagraphStyle(**{**description_style, "alignment": 2})),
+            ],
+            c,
+        )
+
+        dfs["table_header_frame"] = dfs["table_frame"].add_frame(
+            c,
+            0,
+            dfs["table_frame"].frame_container.width,
+            0,
+            45,
+            **{**solid_black_line_params, **no_padding_frame_params},
+        )
+
+        dfs["table_body_frame"] = dfs["table_frame"].add_frame(
+            c,
+            0,
+            dfs["table_frame"].frame_container.width,
+            45,
+            dfs["table_frame"].frame_container.height,
+            **{**solid_black_line_params, **no_padding_frame_params},
+        )
+
+        dict_col_params = {
+            "No.": {"col_name": "No.", "position": ((0, 4), (35, 70))},
+            "Wagen": {"col_name": "Wagen", "position": ((4, 23), (35, 70))},
+            "BezDG": {"col_name": "Bezeichnung des Gutes", "position": ((23, 44), (35, 70))},
+            "NHM": {"col_name": "NHM", "position": ((44, 52), (35, 70))},
+            "PN": {"col_name": "Plomben Nummer", "position": ((52, 62), (25, 80))},
+            "RID": {"col_name": "RID", "position": ((62, 64), (10, 100)), "offset": 5},
+            "NettoMasse": {"col_name": "Netto Masse", "position": ((64, 76), (35, 70))},
+            "TaraWagon": {"col_name": "Tara Wagon", "position": ((76, 88), (35, 70))},
+            "BruttoMasse": {"col_name": "Brutto Masse", "position": ((88, 100), (35, 70))},
+        }
+
+        for key, value in dict_col_params.items():
+            dfs[key + "_frame"] = create_matrix(
+                c,
+                dfs["table_header_frame"],
+                [(value["position"][0], (0, 100))],
+                {**solid_black_line_params, **no_padding_frame_params},
+            )[0]
+
+            dfs[key + "_frame_description"] = create_matrix(
+                c,
+                dfs[key + "_frame"],
+                [((0, 100), value["position"][1])],
+                {**transparent_frame_params, **no_padding_frame_params},
+            )[0]
+
+            dfs[key + "_table_values"] = create_matrix(
+                c,
+                dfs["table_body_frame"],
+                [(value["position"][0], (0, 100))],
+                {**solid_black_line_params, **no_padding_frame_params},
+            )[0]
+
+            aux = create_matrix(
+                c,
+                dfs[key + "_frame_description"],
+                [((0, 100), (0, 100))],
+                {**transparent_frame_params, **no_padding_frame_params},
+            )[0]
+            if key != "RID":
+                aux.frame_container.frame.addFromList(
+                    [
+                        Paragraph(f"{value['col_name']}", style=ParagraphStyle(**{**description_style, "alignment": 1})),
+                    ],
+                    c,
+                )
+            else:
+                aux.frame_container.frame.addFromList(
+                    [Paragraph(f"{aux}", style=ParagraphStyle(**{**description_style, "alignment": 1})) for aux in value["col_name"]],
+                    c,
+                )
+
+        table_body_height = dfs["table_body_frame"].frame_container.height
+        line_height = 18
+
+        quant_wagons_this_page = int(table_body_height // line_height) - 1
+
+        # print(f"quant_wagons_this_page: {quant_wagons_this_page}")
+        for row_idx in range(quant_wagons_this_page):
+            count_wagons_missing -= 1
+            # print(row_idx, row_idx + last_idx_last_page, count_wagons_missing)
+
+            if count_wagons_missing < 0:
+                is_last_page = True
+                break
+
+            wagon = wagon_values[row_idx + last_idx_last_page]
+            start_y = row_idx * line_height + 2
+            end_y = start_y + line_height
+            for col_name in dict_col_params:
+                value = row_idx + 1 + last_idx_last_page if col_name == "No." else wagon[col_name]
+
+                aux_frame = dfs[col_name + "_table_values"].add_frame(
+                    c,
+                    0,
+                    dfs[col_name + "_table_values"].frame_container.width,
+                    start_y,
+                    end_y,
+                    **{**transparent_frame_params, **no_padding_frame_params},
+                )
+
+                c.acroForm.textfield(
+                    name=f"to_be_centered_{count_item}",
+                    value=f"{value}",
+                    x=aux_frame.frame_container.start_x,
+                    y=aux_frame.frame_container.start_y,
+                    width=aux_frame.frame_container.width,
+                    height=aux_frame.frame_container.height,
+                    **text_field_params,
+                )
+                count_item += 1
+        last_idx_last_page = quant_wagons_this_page
+        # print(f"count_wagons_missing: {count_wagons_missing}")
+        # print(f"last_idx_last_page: {last_idx_last_page}")
+
+        if is_last_page:
+            masses = dict_treated_values["Sum_masses"]
+            start_y += line_height  # type: ignore
+            end_y += line_height  # type: ignore
+
+            c.setDash(1, 1)
+            create_line(
+                c,
+                dfs["main_frame"].start_x,
+                dfs["main_frame"].end_x,
+                aux_frame.frame_container.start_y,
+                aux_frame.frame_container.start_y,
+                black_color,
+                1,
+            )
+
+            for col_name, col_value in zip(["PN", "NettoMasse", "TaraWagon", "BruttoMasse"], ["Sum:"] + masses, strict=False):
+                aux_frame = dfs[col_name + "_table_values"].add_frame(
+                    c,
+                    0,
+                    dfs[col_name + "_table_values"].frame_container.width,
+                    start_y,
+                    end_y,
+                    **{**transparent_frame_params, **no_padding_frame_params},
+                )
+                c.acroForm.textfield(
+                    name=f"to_be_centered_{count_item}",
+                    value=f"{col_value}",
+                    x=aux_frame.frame_container.start_x,
+                    y=aux_frame.frame_container.start_y,
+                    width=aux_frame.frame_container.width,
+                    height=aux_frame.frame_container.height,
+                    **text_field_params,
+                )
+                count_item += 1
+
+        c.showPage()
 
     c.save()
+
+    pdf = PdfReader("temporary.pdf")
+    pdf.Root.AcroForm.update(PdfDict(NeedAppearances=PdfObject("true")))  # type: ignore
+
+    for page in pdf.pages:  # type: ignore
+        if "/Annots" in page:
+            for annot in page["/Annots"]:
+                if annot.T.startswith("(to_be_centered"):
+                    annot.update(PdfDict(Q=1))
+
+    PdfWriter().write(filename, pdf)
+
+    if os.path.exists("temporary.pdf"):
+        os.remove("temporary.pdf")
+
+    print(f"File created: {filename}")
+
+
+if __name__ == "__main__":
+    from test_values import info_values, wagon_values
+
+    dict_treated_values = get_treated_values(info_values)
+
+    count_item = create_report("report.pdf", wagon_values + wagon_values + wagon_values, dict_treated_values, repeat_header=False)
