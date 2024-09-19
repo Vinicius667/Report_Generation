@@ -30,6 +30,7 @@ from global_vars import (
     left_margin,
     list_value_names,
     list_wagon_necessary_keys,
+    min_height_header_1,
     moyd,
     no_padding_frame_params,
     right_margin,
@@ -154,8 +155,6 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 "end_y": frame_description_height + hosy,
             }
 
-            parent_frame = "main_frame"
-
             frame_description_name = "Versandbahnhof_1_description"
 
             dfs[frame_description_name] = dfs["main_frame"].add_frame(
@@ -169,8 +168,6 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 c,
             )
 
-            min_height = 30
-
             frame_value_text = dict_treated_values["Versandbahnhof_1"]
             text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
@@ -179,7 +176,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
 
             frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
-            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+            frame_height = max(min_height_header_1, frame_value_height) + frame_description_height + hosy
 
             start_y = 0
             end_y = frame_height
@@ -247,8 +244,6 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 c,
             )
 
-            min_height = 30
-
             frame_value_text = dict_treated_values["Versandbahnhof_2"]
             text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
@@ -257,7 +252,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
 
             frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
-            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+            frame_height = max(min_height_header_1, frame_value_height) + frame_description_height + hosy
 
             start_y = dfs["Versandbahnhof_1_frame"].end_y
             end_y = start_y + frame_height
@@ -269,7 +264,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 "end_y": end_y,
             }
 
-            dfs["Versandbahnhof_2_frame"] = dfs[parent_frame].add_frame(
+            dfs["Versandbahnhof_2_frame"] = dfs["main_frame"].add_frame(
                 c,
                 **frame_position,
                 **frame_style,
@@ -285,7 +280,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 "end_y": end_y,
             }
 
-            dfs["Versandbahnhof_2_value"] = dfs[parent_frame].add_frame(
+            dfs["Versandbahnhof_2_value"] = dfs["main_frame"].add_frame(
                 c,
                 **frame_value_position,
                 **frame_value_style,
@@ -326,8 +321,6 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 c,
             )
 
-            min_height = 30
-
             frame_value_text = dict_treated_values["Leitungswege"]
             text_value_style = dict_font_header_1_value_style
             p = Paragraph(frame_value_text, style=ParagraphStyle(**text_value_style))
@@ -336,7 +329,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
 
             frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
-            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+            frame_height = max(min_height_header_1, frame_value_height) + frame_description_height + hosy
 
             start_y = dfs["Versandbahnhof_2_frame"].end_y
             end_y = start_y + frame_height
@@ -390,7 +383,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
 
             frame_value_height = 1.3 * text_value_style["fontSize"] * lines_necessary
 
-            frame_height = max(min_height, frame_value_height) + frame_description_height + hosy
+            frame_height = max(min_height_header_1, frame_value_height) + frame_description_height + hosy
 
             end_y = dfs["Leitungswege_frame"].end_y
             start_y = end_y - frame_height
@@ -407,8 +400,6 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 **frame_position,
                 **frame_style,
             )
-
-            min_height = 30
 
             frame_value_text = dict_treated_values["Ort"]
             text_value_style = dict_font_header_1_value_style
@@ -430,7 +421,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
 
             frame_value_name = "Ort_value"
 
-            dfs[frame_value_name] = dfs[parent_frame].add_frame(
+            dfs[frame_value_name] = dfs["main_frame"].add_frame(
                 c,
                 **frame_value_position,
                 **frame_value_style,
@@ -485,7 +476,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 "end_y": end_y,
             }
 
-            dfs[frame_name] = dfs[parent_frame].add_frame(
+            dfs[frame_name] = dfs["main_frame"].add_frame(
                 c,
                 **frame_position,
                 **frame_style,
@@ -502,11 +493,9 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 "end_y": end_y,
             }
 
-            parent_frame = "main_frame"
-
             frame_description_name = "Ubernahme_frame_description"
 
-            dfs[frame_description_name] = dfs[parent_frame].add_frame(
+            dfs[frame_description_name] = dfs["main_frame"].add_frame(
                 c,
                 **frame_description_position,
                 **frame_dict_font_description_style,
@@ -530,7 +519,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 "end_y": end_y,
             }
 
-            dfs["Ubernahme_value"] = dfs[parent_frame].add_frame(
+            dfs["Ubernahme_value"] = dfs["main_frame"].add_frame(
                 c,
                 **frame_value_position,
                 **frame_value_style,
@@ -555,7 +544,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 **frame_style,
             )
 
-            frames_Wagenliste = {
+            frames_wagenliste = {
                 "title_frameBahnhof_frame": {
                     "position": ((0, 100), (5, 30)),
                     "text": "<b>Wagenliste zum Frachtbrief</b>",
@@ -583,7 +572,7 @@ def _create_report(filename: str, wagon_values: list[dict], dict_treated_values:
                 },
             }
 
-            for key, value in frames_Wagenliste.items():
+            for key, value in frames_wagenliste.items():
                 dfs[key] = create_matrix(
                     c,
                     dfs["Wagenliste_frame"],

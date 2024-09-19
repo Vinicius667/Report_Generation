@@ -40,6 +40,8 @@ header_2_empfanger_width = main_frame_width * 0.25
 header_2_zu_verzollen_in_width = main_frame_width * 0.25
 header_2_begleiter_width = main_frame_width * 0.25
 
+min_height_header_1 = 30
+
 
 # Paramenters for the header
 # Offset over the line
